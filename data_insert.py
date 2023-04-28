@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 import json
 import os
 import psycopg2
@@ -23,12 +25,10 @@ def getData(directory, filename):
 def connect_db():
     global dbObj, cursor
     dbObj = psycopg2.connect(
-        # host="0.tcp.ngrok.io",
-        # port=14396,
-        host="localhost",
-        database="main_db",
-        user="root",
-        password="root",
+        host=os.environ.get('DB_HOST'),
+        database=os.environ.get('DB_NAME'),
+        user=os.environ.get('DB_USER'),
+        password=os.environ.get('DB_PASSWORD'),
     )
     cursor = dbObj.cursor()
 
@@ -303,34 +303,34 @@ def executeBatchInsert(query, values):
 
 connect_db()
 
-# for filename in getFileNames("./data"):
+for filename in getFileNames("./data"):
 
-#     data = getData("./data", filename)
-#     match_id = filename.replace(".json","").strip()
-#     print(f"{filename} started")
+    data = getData("./data", filename)
+    match_id = filename.replace(".json","").strip()
+    print(f"{filename} started")
 
-#     try:
-#         executeBatchInsert(generateTypesInsertQuery(), getTypes(data))
-#         executeBatchInsert(generatePlayPatternsInsertQuery(), getPlayPatterns(data))
-#         executeBatchInsert(generateTeamsInsertQuery(), getTeams(data))
-#         executeBatchInsert(generatePositionsInsertQuery(), getPositions(data))
-#         executeBatchInsert(generatePlayersInsertQuery(), getPlayers(data))
-#         executeBatchInsert(generateEventInsertQuery(), getEvent(data, match_id))
-#         executeBatchInsert(generateRelatedEventsInsertQuery(), getRelatedEvents(data))
-#         executeBatchInsert(generateLineupsInsertQuery(), getLineUps(data))
+    try:
+        executeBatchInsert(generateTypesInsertQuery(), getTypes(data))
+        executeBatchInsert(generatePlayPatternsInsertQuery(), getPlayPatterns(data))
+        executeBatchInsert(generateTeamsInsertQuery(), getTeams(data))
+        executeBatchInsert(generatePositionsInsertQuery(), getPositions(data))
+        executeBatchInsert(generatePlayersInsertQuery(), getPlayers(data))
+        executeBatchInsert(generateEventInsertQuery(), getEvent(data, match_id))
+        executeBatchInsert(generateRelatedEventsInsertQuery(), getRelatedEvents(data))
+        executeBatchInsert(generateLineupsInsertQuery(), getLineUps(data))
 
-#     except Exception as e:
-#         # If there is an error, rollback the transaction
-#         dbObj.rollback()
-#         print(f"Error executing batch queries: {e}")
+    except Exception as e:
+        # If there is an error, rollback the transaction
+        dbObj.rollback()
+        print(f"Error executing batch queries: {e}")
 
-#     try:
-#         dbObj.commit()
-#     except Exception as e:
-#         dbObj.rollback()
-#         print(f"Error executing batch queries: {e}")
+    try:
+        dbObj.commit()
+    except Exception as e:
+        dbObj.rollback()
+        print(f"Error executing batch queries: {e}")
 
-#     break
+    break
 
 cursor.close()
 dbObj.close()

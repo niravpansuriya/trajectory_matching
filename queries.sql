@@ -73,15 +73,9 @@ CREATE TABLE events.lineups (
     
 CREATE INDEX idx_index ON events.events (index);
 CREATE INDEX idx_timestamp ON events.events (timestamp);
+CREATE INDEX idx_match_id ON events.events (match_id);
 CREATE INDEX idx_location_x ON events.events (location_x);
 CREATE INDEX idx_location_y ON events.events (location_y);
 
 ALTER TABLE IF EXISTS events.related_events
     ADD CONSTRAINT event_id_related_event_id UNIQUE (event_id, related_event_id);
-
-SELECT *
-FROM events.events
-WHERE match_id = '267499'
-AND event_index BETWEEN 1523 AND 1523
-AND location_x BETWEEN 89 AND 90
-AND location_y BETWEEN 70 AND 72;
