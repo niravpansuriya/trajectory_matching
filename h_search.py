@@ -4,6 +4,7 @@ load_dotenv()
 
 import psycopg2
 import os
+import time
 
 # define constants
 DISTANCE_MARGIN = 1  # gives flexibility to match location
@@ -206,4 +207,11 @@ def main():
     dbObj.close()
 
 if __name__ == '__main__':
+    start_time = time.time()
+
     main()
+
+    end_time = time.time()
+
+    print("Running time:", end_time - start_time, "seconds")
+

@@ -35,5 +35,13 @@ To run this project, you need:
 ```pip install -r requirements.txt```
 
 7. Run the SQL commands in the "queries.sql" file to create the necessary database tables.
-8. Run the "data_insert.py" file to insert the event data into the database:
+
+### Data Insertion
+
+1. Run the "data_insert.py" file to insert the event data into the database:
 ```python3 data_insert.py```
+
+### Heuristic Search
+
+1. Set up the targetPath variable in h_search.py file and run the file
+```python3 h_search.py```
