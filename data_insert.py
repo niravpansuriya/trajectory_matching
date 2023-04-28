@@ -351,8 +351,6 @@ def main():
         except Exception as e:
             dbObj.rollback()
             print(f"Error executing batch queries: {e}")
-
-        break
     
     # at the end close the cursor and database connection
     cursor.close()
