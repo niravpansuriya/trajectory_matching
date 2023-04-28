@@ -31,7 +31,9 @@ To run this project, you need:
 4. Place your event data files in the "data" directory.
 
 5. Create a PostgreSQL database and configure the ".env" file based on your PostgreSQL configuration. Replace "username", "password", and "db_name" with your PostgreSQL credentials.
+
 6. Install the project dependencies:
+
 ```pip install -r requirements.txt```
 
 7. Run the SQL commands in the "queries.sql" file to create the necessary database tables.
@@ -39,9 +41,11 @@ To run this project, you need:
 ### Data Insertion
 
 1. Run the "data_insert.py" file to insert the event data into the database:
+
 ```python3 data_insert.py```
 
 ### Heuristic Search
 
 1. Set up the targetPath variable in h_search.py file and run the file:
+
 ```python3 h_search.py```
