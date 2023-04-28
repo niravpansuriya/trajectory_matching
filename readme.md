@@ -43,5 +43,5 @@ To run this project, you need:
 
 ### Heuristic Search
 
-1. Set up the targetPath variable in h_search.py file and run the file
+1. Set up the targetPath variable in h_search.py file and run the file:
 ```python3 h_search.py```
