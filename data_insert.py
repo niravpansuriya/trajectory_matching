@@ -5,10 +5,11 @@ import os
 import psycopg2
 from psycopg2.extras import execute_values
 
+# global variables
 dbObj = None
 cursor = None
 
-
+# returns filenames of datafile inside data folder
 def getFileNames(directory):
     for filename in os.listdir(directory):
         # Check if the item is a file (not a directory)
@@ -16,12 +17,14 @@ def getFileNames(directory):
             yield filename
 
 
+# read json data from data file
 def getData(directory, filename):
     with open(directory + "/" + filename, "r") as f:
         data = json.load(f)
         return data
 
-
+# connect with database
+# setup global dbObj and cursor variable
 def connect_db():
     global dbObj, cursor
     dbObj = psycopg2.connect(
@@ -32,12 +35,15 @@ def connect_db():
     )
     cursor = dbObj.cursor()
 
-
+# convert timestamp string to seconds
 def get_seconds(time_str):
     hours, minutes, seconds = map(float, time_str.split(":"))
     return seconds + 60 * minutes + 3600 * hours
 
-
+"""
+SQL generator methods
+These methods will generate insertion query for each table
+"""
 def generateEventInsertQuery():
     columns = [
         "id",
@@ -162,6 +168,10 @@ def generateRelatedEventsInsertQuery():
     """
     return query
 
+"""
+These methods will convert json data to values which
+can be inserted in database
+"""
 
 def getEvent(data, match_id):
     values = []
@@ -292,6 +302,7 @@ def getRelatedEvents(data):
     return values
 
 
+# execute batch query
 def executeBatchInsert(query, values):
     try:
         # Execute the batch queries
@@ -301,36 +312,48 @@ def executeBatchInsert(query, values):
         raise e
 
 
-connect_db()
+def main():
+    # connect the database
+    connect_db()
+    
+    # for every data file
+    for filename in getFileNames("./data"):
+        
+        # read data from file
+        data = getData("./data", filename)
 
-for filename in getFileNames("./data"):
+        # get match id from filename
+        match_id = filename.replace(".json","").strip()
+        print(f"{filename} started")
 
-    data = getData("./data", filename)
-    match_id = filename.replace(".json","").strip()
-    print(f"{filename} started")
+        # try to to insert data in every table with batch insert
+        try:
+            executeBatchInsert(generateTypesInsertQuery(), getTypes(data))
+            executeBatchInsert(generatePlayPatternsInsertQuery(), getPlayPatterns(data))
+            executeBatchInsert(generateTeamsInsertQuery(), getTeams(data))
+            executeBatchInsert(generatePositionsInsertQuery(), getPositions(data))
+            executeBatchInsert(generatePlayersInsertQuery(), getPlayers(data))
+            executeBatchInsert(generateEventInsertQuery(), getEvent(data, match_id))
+            executeBatchInsert(generateRelatedEventsInsertQuery(), getRelatedEvents(data))
+            executeBatchInsert(generateLineupsInsertQuery(), getLineUps(data))
 
-    try:
-        executeBatchInsert(generateTypesInsertQuery(), getTypes(data))
-        executeBatchInsert(generatePlayPatternsInsertQuery(), getPlayPatterns(data))
-        executeBatchInsert(generateTeamsInsertQuery(), getTeams(data))
-        executeBatchInsert(generatePositionsInsertQuery(), getPositions(data))
-        executeBatchInsert(generatePlayersInsertQuery(), getPlayers(data))
-        executeBatchInsert(generateEventInsertQuery(), getEvent(data, match_id))
-        executeBatchInsert(generateRelatedEventsInsertQuery(), getRelatedEvents(data))
-        executeBatchInsert(generateLineupsInsertQuery(), getLineUps(data))
+        # if any error then rollback the transaction
+        except Exception as e:
+            # If there is an error, rollback the transaction
+            dbObj.rollback()
+            print(f"Error executing batch queries: {e}")
 
-    except Exception as e:
-        # If there is an error, rollback the transaction
-        dbObj.rollback()
-        print(f"Error executing batch queries: {e}")
+        # if insertion successful for the match
+        # then commit the transaction
+        # else rollback
+        try:
+            dbObj.commit()
+        except Exception as e:
+            dbObj.rollback()
+            print(f"Error executing batch queries: {e}")
 
-    try:
-        dbObj.commit()
-    except Exception as e:
-        dbObj.rollback()
-        print(f"Error executing batch queries: {e}")
-
-    break
-
-cursor.close()
-dbObj.close()
+        break
+    
+    # at the end close the cursor and database connection
+    cursor.close()
+    dbObj.close()
