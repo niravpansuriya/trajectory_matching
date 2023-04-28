@@ -1,20 +1,34 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import psycopg2
 from fastdtw import fastdtw
 import numpy as np
 import time
+import os
 
-COOR_THRESHOLD = 1
-INDEX_THRESHOLD = 4
+DISTANCE_MARGIN = 1
 DISTANCE_THRSHOLD = 10
+PATH_LENGTH = 10
 
-conn = psycopg2.connect(
-    # host="0.tcp.ngrok.io",x
-    # port=14396,
-    host="localhost",
-    database="main_db",
-    user="root",
-    password="root",
-)
+# global variables
+dbObj = None
+cursor = None
+targetPath = [(25, 76), (27, 36), (81, 59), (43, 4), (44, 6)]
+
+
+# connect with database
+# setup global dbObj and cursor variable
+def connect_db():
+    global dbObj, cursor
+    dbObj = psycopg2.connect(
+        host=os.environ.get("DB_HOST"),
+        database=os.environ.get("DB_NAME"),
+        user=os.environ.get("DB_USER"),
+        password=os.environ.get("DB_PASSWORD"),
+    )
+    cursor = dbObj.cursor()
 
 
 def euclidean_dist(x, y):
@@ -22,7 +36,9 @@ def euclidean_dist(x, y):
 
 
 def isSameLocation(l1, l2):
-    return abs(l1[0] - l2[0]) <= COOR_THRESHOLD and abs(l1[1] - l2[1]) <= COOR_THRESHOLD
+    return (
+        abs(l1[0] - l2[0]) <= DISTANCE_MARGIN and abs(l1[1] - l2[1]) <= DISTANCE_MARGIN
+    )
 
 
 def isPotentialCandidate(candidate, targetPath=[]):
@@ -32,9 +48,7 @@ def isPotentialCandidate(candidate, targetPath=[]):
     if not targetPathLength:
         return False
 
-    limit = targetPathLength * INDEX_THRESHOLD
-
-    cur = conn.cursor()
+    limit = targetPathLength * 4
 
     # get all points till the limit starting from the candidate
 
@@ -48,8 +62,8 @@ def isPotentialCandidate(candidate, targetPath=[]):
         matchId, candidate["index"], limit
     )
 
-    cur.execute(query)
-    locations = cur.fetchall()
+    cursor.execute(query)
+    locations = cursor.fetchall()
     nonNullLocations = []
     minDistance = float("inf")
     for i in range(len(locations)):
@@ -68,8 +82,6 @@ def isPotentialCandidate(candidate, targetPath=[]):
 def getPoints(
     matchId=None, indexTuple=(), locationXTuple=(), locationYTuple=(), columns=[]
 ):
-    cur = conn.cursor()
-
     if not len(columns):
         return []
 
@@ -103,42 +115,39 @@ def getPoints(
             locationYTuple[1],
         )
 
-    cur.execute(query)
+    cursor.execute(query)
 
-    rows = cur.fetchall()
+    rows = cursor.fetchall()
 
     # Convert the rows to a list of dictionaries
     result = [dict(zip(columns, row)) for row in rows]
-    # for row in rows:
-    #     print(row)
-    # Close the cursor and database connection
-    cur.close()
 
     return result
 
 
 def getFullPath(candidate):
-    cur = conn.cursor()
-
-    query = """SELECT id, index, location_x, location_y
+    query = """SELECT location_x, location_y
             FROM events.events
             WHERE match_id = '{}'
             AND index >= {}
             ORDER BY index ASC
-            LIMIT 8
+            LIMIT {}
             """.format(
-        candidate["match"], candidate["index"]
+        candidate["match"], candidate["index"], PATH_LENGTH
     )
 
-    cur.execute(query)
+    cursor.execute(query)
 
-    events = cur.fetchall()
+    events = cursor.fetchall()
 
-    columns = ["id", "index", "location_x", "location_y"]
+    columns = ["location_x", "location_y"]
 
     events = [dict(zip(columns, event)) for event in events]
 
-    return events
+    path = []
+    for event in events:
+        path.append((event["location_x"], event["location_y"]))
+    return path
 
 
 def getTopFive(candidates, distanceDict):
@@ -163,8 +172,8 @@ def findPaths(targetPath=[]):
     targetX = targetPath[0][0]
     targetY = targetPath[0][1]
     points = getPoints(
-        locationXTuple=(targetX - COOR_THRESHOLD, targetX + COOR_THRESHOLD),
-        locationYTuple=(targetY - COOR_THRESHOLD, targetY + COOR_THRESHOLD),
+        locationXTuple=(targetX - DISTANCE_MARGIN, targetX + DISTANCE_MARGIN),
+        locationYTuple=(targetY - DISTANCE_MARGIN, targetY + DISTANCE_MARGIN),
         columns=["id", "match_id", "index", "location_x", "location_y"],
     )
 
@@ -202,43 +211,26 @@ def findPaths(targetPath=[]):
     result = []
     for candidate in topFiveCandidates:
         path = getFullPath(candidate)
-        print(distanceDict[candidate["eventId"]])
         result.append({"matchId": candidate["match"], "path": path})
 
-    # print(result)
     return result
 
 
-start_time = time.time()
+def main():
+    connect_db()
+    paths = findPaths(targetPath=targetPath)
+    
+    for path in paths:
+        print(path)
 
-paths = findPaths(targetPath=[(25,76), (27,36), (81,59), (43,4), (44,6)])
-# paths = findPaths(
-#     targetPath=[
-#         (63.6, 3.1),
-#         (57.4, 16.3),
-#         (68, 3.3),
-#         (57.3, 66.8),
-#         (45.9, 11.5),
-#         (52.8, 10.4),
-#         (41.5, 23.9),
-#         (41.5, 23.9),
-#     ]
-# )
+    cursor.close()
+    dbObj.close()
 
-# print paths
-for pathDict in paths:
-    path = pathDict["path"]
-    print(pathDict["matchId"])
-    finalPath = []
-    for event in path:
-        finalPath.append((event["location_x"], event["location_y"]))
+if __name__ == '__main__':
+    start_time = time.time()
 
-    print(finalPath)
+    main()
 
-end_time = time.time()
+    end_time = time.time()
 
-print("Running time:", end_time - start_time, "seconds")
-
-# getPoints(locationXTuple=(50,52),locationYTuple=(50,52), columns=["index","location_x","location_y","match_id"])
-
-conn.close()
+    print("Running time:", end_time - start_time, "seconds")

@@ -44,8 +44,14 @@ To run this project, you need:
 
 ```python3 data_insert.py```
 
-### Heuristic Search
+### Heuristic Search Algorithm
 
 1. Set up the targetPath variable in h_search.py file and run the file:
 
 ```python3 h_search.py```
+
+### DTW-based Algorithm
+
+1. Set up the targetPath variable in dtw.py file and run the file:
+
+```python3 dtw.py```
