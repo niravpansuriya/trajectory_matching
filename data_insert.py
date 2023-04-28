@@ -357,3 +357,6 @@ def main():
     # at the end close the cursor and database connection
     cursor.close()
     dbObj.close()
+
+if __name__ == '__main__':
+    main()

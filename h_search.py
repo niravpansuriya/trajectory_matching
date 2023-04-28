@@ -1,22 +1,42 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import psycopg2
+import os
 
-COOR_THRESHOLD = 0.5
-INDEX_THRESHOLD = 3
+# define constants
+DISTANCE_MARGIN = 1  # gives flexibility to match location
+EVENTS_LOOKUP_THRESHOLD = 3  # makes algorithm flexible
+PATH_LENGTH = 10  # length of the matched paths
 
-conn = psycopg2.connect(
-    # host="0.tcp.ngrok.io",
-    # port=14396,
-    host="localhost",
-    database="main_db",
-    user="root",
-    password="root",
-)
+# global variables
+dbObj = None
+cursor = None
+targetPath = [(25, 76), (27, 36), (81, 59), (43, 4), (44, 6)]
+
+# connect with database
+# setup global dbObj and cursor variable
+def connect_db():
+    global dbObj, cursor
+    dbObj = psycopg2.connect(
+        host=os.environ.get("DB_HOST"),
+        database=os.environ.get("DB_NAME"),
+        user=os.environ.get("DB_USER"),
+        password=os.environ.get("DB_PASSWORD"),
+    )
+    cursor = dbObj.cursor()
 
 
+""" get points of given match id,
+    with index between(lower_index, higher_index),
+    with location in given range
+    it will return data of provided columns
+"""
 def getPoints(
     matchId=None, indexTuple=(), locationXTuple=(), locationYTuple=(), columns=[]
 ):
-    cur = conn.cursor()
+    # cur = conn.cursor()
 
     if not len(columns):
         return []
@@ -51,43 +71,41 @@ def getPoints(
             locationYTuple[1],
         )
 
-    cur.execute(query)
+    cursor.execute(query)
 
-    rows = cur.fetchall()
+    rows = cursor.fetchall()
 
     # Convert the rows to a list of dictionaries
     result = [dict(zip(columns, row)) for row in rows]
-    # for row in rows:
-    #     print(row)
-    # Close the cursor and database connection
-    cur.close()
 
     return result
 
-
+# get path of length PATH_LENGTH starting from given candidate
 def getFullPath(candidate):
-    cur = conn.cursor()
 
-    query = """SELECT id, index, location_x, location_y
+    query = """SELECT location_x, location_y
             FROM events.events
             WHERE match_id = '{}'
             AND index >= {}
             ORDER BY index ASC
-            LIMIT 8
+            LIMIT {}
             """.format(
-        candidate["match"], candidate["index"]
+        candidate["match"], candidate["index"], PATH_LENGTH
     )
 
-    cur.execute(query)
+    cursor.execute(query)
 
-    events = cur.fetchall()
+    events = cursor.fetchall()
 
-    columns = ["id", "index", "location_x", "location_y"]
+    columns = ["location_x", "location_y"]
 
     events = [dict(zip(columns, event)) for event in events]
 
-    return events
+    path = []
+    for candidate in events:
+        path.append((candidate["location_x"], candidate["location_y"]))
 
+    return path
 
 def findPaths(targetPath=[]):
     candidates = []
@@ -98,8 +116,8 @@ def findPaths(targetPath=[]):
             targetX = targetCoor[0]
             targetY = targetCoor[1]
             points = getPoints(
-                locationXTuple=(targetX - COOR_THRESHOLD, targetX + COOR_THRESHOLD),
-                locationYTuple=(targetY - COOR_THRESHOLD, targetY + COOR_THRESHOLD),
+                locationXTuple=(targetX - DISTANCE_MARGIN, targetX + DISTANCE_MARGIN),
+                locationYTuple=(targetY - DISTANCE_MARGIN, targetY + DISTANCE_MARGIN),
                 columns=["id", "match_id", "index", "location_x", "location_y"],
             )
 
@@ -130,23 +148,22 @@ def findPaths(targetPath=[]):
                 targetY = targetCoor[1]
                 points = getPoints(
                     matchId=curr["match"],
-                    indexTuple=(curr["index"] + 1, curr["index"] + INDEX_THRESHOLD),
+                    indexTuple=(
+                        curr["index"] + 1,
+                        curr["index"] + EVENTS_LOOKUP_THRESHOLD,
+                    ),
                     locationXTuple=(
-                        targetX - COOR_THRESHOLD,
-                        targetX + COOR_THRESHOLD,
+                        targetX - DISTANCE_MARGIN,
+                        targetX + DISTANCE_MARGIN,
                     ),
                     locationYTuple=(
-                        targetY - COOR_THRESHOLD,
-                        targetY + COOR_THRESHOLD,
+                        targetY - DISTANCE_MARGIN,
+                        targetY + DISTANCE_MARGIN,
                     ),
-                    columns=["id","match_id", "index", "location_x", "location_y"],
+                    columns=["id", "match_id", "index", "location_x", "location_y"],
                 )
 
                 if len(points) == 0:
-                    # remove the element
-                    # candidates.remove(i)
-                    # del candidates[i]
-                    # i -= 1
                     removedIndexes.append(i)
 
                 else:
@@ -160,7 +177,7 @@ def findPaths(targetPath=[]):
                 candidates[i] for i in range(len(candidates)) if i not in removedIndexes
             ]
 
-    # print(candidates)
+   
     # remove candidates from the same match
     candidateDict = dict()
 
@@ -177,18 +194,16 @@ def findPaths(targetPath=[]):
         path = getFullPath(candidateDict[matchId])
         result.append({"matchId": matchId, "path": path})
 
-    # print(result)
     return result
 
+def main():
+    connect_db()
 
-paths = findPaths(targetPath=[(25,76), (27,36), (81,59), (43,4), (44,6)])
+    paths = findPaths(targetPath=targetPath)
+    print(paths)
 
-l = []
-for p in paths:
-    path = p["path"]
-    for ele in path:
-        l.append((ele["location_x"], ele["location_y"]))
-print(l)
-# getPoints(locationXTuple=(50,52),locationYTuple=(50,52), columns=["index","location_x","location_y","match_id"])
+    cursor.close()
+    dbObj.close()
 
-conn.close()
+if __name__ == '__main__':
+    main()
