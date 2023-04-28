@@ -67,7 +67,7 @@ CREATE TABLE events.lineups (
     jersey_number INTEGER NOT NULL,
     FOREIGN KEY (event_id) REFERENCES events.events(id),
     FOREIGN KEY (player_id) REFERENCES events.players(id),
-    FOREIGN KEY (position_id) REFERENCES events.positions(id),
+    FOREIGN KEY (position_id) REFERENCES events.positions(id)
 );
 
     
